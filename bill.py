@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-__author__ = 'roman'
+__author__ = 'Roman Kovalev'
 
 import grab
 import sys
@@ -8,27 +8,32 @@ import sys
 g = grab.Grab()
 g.setup(debug=True)
 
-def get_user_info():
-    g.setup(post={'USERNAME': '', 'PASSWORD': '', 'IDENTIFICATION': 'CONTRACT', 'FORMNAME': 'QFRAME', 'button': 'Вход'})
-    res = g.go('http://billing.qwerty.ru/pls/rac.q/!w3_p_main.showform?CONFIG=CONTRACT')
+BASE_URL="http://billing.qwerty.ru/pls/rac.q/!w3_p_main.showform"
 
-    addr_pattern = '<FRAME name="data" SRC="'
-    replace = res.body.find(addr_pattern)
-    if replace >= 0:
-        replace_end = res.body.find('"', replace + len(addr_pattern))
-        redirect = res.body[replace + len(addr_pattern):replace_end]
-        print >> sys.stderr, replace, replace_end, redirect
-        res = g.go('http://billing.qwerty.ru/pls/rac.q/!w3_p_main.showform' + redirect)
+def get_user_info(user, passwd):
+    g.setup(post={'USERNAME': user, 'PASSWORD': passwd, 'IDENTIFICATION': 'CONTRACT', 'FORMNAME': 'QFRAME', 'button': 'Вход'})
+    res = g.go(BASE_URL + '?CONFIG=CONTRACT')
 
-        print >> sys.stderr, g.xpath('//form/table[3]/tr[6]/td[2]').text
+    frame_url = g.xpath_list("//frame[@name='data']/@src")
+    if len(frame_url) > 0:
+        res = g.go(BASE_URL + frame_url[0])
+        print g.xpath('//form/table[3]/tr[6]/td[2]').text.encode('utf8')
     else:
-        print >> sys.stderr, 'unable to parse qwerty answer!'
+        alert_pos = res.body.find('alert ("')
+        if alert_pos > 0:
+            print >> sys.stderr, res.body[alert_pos + 8: res.body.find('"', alert_pos + 8) ].decode('cp1251').encode('utf8')
+        else:
+            print >> sys.stderr, 'unable to parse qwerty answer!'
         return False
 
-    print res.body
 
 
+def usage(appname):
+    print >> sys.stderr, "Usage: %s 'username' 'password'" % appname
+    return -1
 
 if __name__ == '__main__':
-    get_user_info()
+    if len(sys.argv) != 3:
+        exit ( usage(sys.argv[0]) )
+    get_user_info(sys.argv[1], sys.argv[2])
 
