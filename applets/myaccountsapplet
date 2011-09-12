@@ -1,0 +1,87 @@
+#! /usr/bin/env python
+# -*- coding: UTF-8 -*-
+
+import pygtk
+pygtk.require('2.0')
+import gtk
+import gobject
+import gnome
+import gnomeapplet
+
+import logging
+from datetime import datetime
+
+logging.basicConfig(filename="myaccountsapplet.log")
+log = logging.getLogger("MyAccountsApplet")
+log.setLevel(logging.INFO)
+
+class MyAccountsApplet(gnomeapplet.Applet):
+    def update_tooltip(self, text = None):
+        if text is None:
+            self.tooltip.set_tip(self.applet, self.tooltip_text)
+        else:
+            self.tooltip_text = text
+            self.update_tooltip()
+
+    def update_text(self,text=None):
+        if text is None:
+            self.temp.set_text(self.data)
+        else:
+            self.data = text
+            self.update_text()
+
+    def create_applet(self):
+        app_window = self.applet
+        event_box = gtk.EventBox()
+        event_box.set_events(gtk.gdk.BUTTON_PRESS_MASK |
+            gtk.gdk.POINTER_MOTION_MASK |
+            gtk.gdk.POINTER_MOTION_HINT_MASK |
+            gtk.gdk.CONFIGURE )
+
+        self.temp = gtk.Label()
+        self.data = "TT" # я не стал искать иконку и ограничился надписью TT
+        self.update_text()
+
+        self.inside_applet = gtk.HBox()
+        self.inside_applet.pack_start(self.temp)
+
+        self.tooltip = gtk.Tooltips()
+        self.tooltip_text = "getting data..."
+        self.update_tooltip()
+
+        event_box.add(self.inside_applet)
+        app_window.add(event_box)
+        app_window.show_all()
+        return event_box
+
+    def button_pressed(self, widget, event, *args, **kwargs):
+        if event.button==2:# средняя кнопка мыши, обновить подсказку
+            self.update_tooltip(datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S"))
+        elif event.button==1:# левая кнопка мыши, записать в лог
+            log.info("Button Pressed: %s",datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S"))
+
+    def __init__(self,applet,iid):
+        self.__gobject_init__()
+        self.applet = applet
+
+        self.box = self.create_applet()
+        self.applet.connect("button-press-event",self.button_pressed) # добавляем обработчик события клика
+        log.info("Applet created succesfully")
+
+gobject.type_register(MyAccountsApplet)
+
+DEBUG = False
+
+def my_accounts_applet_factory(applet, iid):
+    # Реализация фабрики
+    log.info("Creating the applet...")
+    MyAccountsApplet(applet, iid)
+    return True
+
+log.info("Starting...")
+gnomeapplet.bonobo_factory("OAFIID:MyAccountsApplet",
+                    MyAccountsApplet.__gtype__,
+                    "MyAccounts",
+                    "0.1",
+                    my_accounts_applet_factory) # Запуск всего механизма
+log.info("Stopping...")
